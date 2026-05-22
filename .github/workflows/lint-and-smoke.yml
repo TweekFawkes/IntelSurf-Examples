@@ -1,0 +1,39 @@
+name: lint-and-smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Syntax-check every Python file
+        run: |
+          python -m py_compile recipes/_common/intelsurf_http.py
+          find recipes -name '*.py' -print0 | xargs -0 python -m py_compile
+          find mcp-server/src -name '*.py' -print0 | xargs -0 python -m py_compile
+          find mcp-server/tests -name '*.py' -print0 | xargs -0 python -m py_compile
+
+      - name: Syntax-check every shell recipe
+        run: |
+          find recipes -name '*.sh' -print0 | xargs -0 -n1 bash -n
+          find openapi -name '*.sh' -print0 | xargs -0 -n1 bash -n
+
+      - name: Install + smoke-test MCP server
+        run: |
+          pip install --upgrade pip
+          pip install -e 'mcp-server[dev]'
+          pytest mcp-server/tests -q
+
+      - name: Validate OpenAPI snapshot is JSON
+        run: |
+          python -c "import json; json.load(open('openapi/openapi.json'))"
